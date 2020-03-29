@@ -1,8 +1,8 @@
-const grpc = require("grpc");
-const fs = require("fs");
-const protoLoader = require("@grpc/proto-loader");
-const bunyan = require("bunyan");
-const packagejson =require("./package.json");
+const grpc = require("grpc-web");
+//const fs = require("fs");
+//const protoLoader = require("@grpc/proto-loader");
+//const bunyan = require("bunyan");
+//const packagejson =require("./package.json");
 let log, config, client;
 
 const VECTOR_CLIENT_VERSION = 2;
@@ -42,9 +42,10 @@ var LoggerInterceptor = function(options, nextCall) {
 };
 
 var VectorAPI = function(configObj){
-    if (fs.existsSync("./config.js")){
-        config = require("./config.js");
-    }
+    // $$$ no fs dependency
+    //if (fs.existsSync("./config.js")){
+    //    config = require("./config.js");
+    //}
     if (!configObj){
         console.error("Missing config.js file or no config object passed in.");
         throw new Error("Missing config.js file or no config object passed in.");
@@ -57,40 +58,54 @@ var VectorAPI = function(configObj){
         grpc.setLogVerbosity(0);
     }
 
-    // Configure bunyan logging
-    log = bunyan.createLogger({
-        name: packagejson.name + " " + packagejson.version,
-        streams: [{
-            level: config.DEBUG_LEVEL, // Priority of levels looks like this: Trace -> Debug -> Info -> Warn -> Error -> Fatal
-            stream: process.stdout
-        }]
-    });
+    //// Configure bunyan logging
+    //log = bunyan.createLogger({
+    //    name: packagejson.name + " " + packagejson.version,
+    //    streams: [{
+    //        level: config.DEBUG_LEVEL, // Priority of levels looks like this: Trace -> Debug -> Info -> Warn -> Error -> Fatal
+    //        stream: process.stdout
+    //    }]
+    //});
+    // console logging
+    log = console.log;
+
     // TODO improve detection of these values
     if (!config || !config.VECTOR_NAME || !config.VECTOR_SN || !config.VECTOR_BEARER_TOKEN || !config.VECTOR_IP || !config.VECTOR_CRT){
         log.error("Missing config.js values. Please edit values in config.sample.js and rename it 'config.js'");
-        process.exit(-1);
+        //process.exit(-1);
     }
-    var proto = grpc.loadPackageDefinition(
-        protoLoader.loadSync("./protobufs/anki_vector/messaging/external_interface.proto", {
-            keepCase: true,
-            longs: String,
-            enums: String,
-            defaults: true,
-            oneofs: true,
-            includeDirs: ['node_modules/google-proto-files', 'protobufs']
-        })
-    );
+
+    // TODO: replace protoloader
+    //var proto = grpc.loadPackageDefinition(
+    //    protoLoader.loadSync("./protobufs/anki_vector/messaging/external_interface.proto", {
+    //        keepCase: true,
+    //        longs: String,
+    //        enums: String,
+    //        defaults: true,
+    //        oneofs: true,
+    //        includeDirs: ['node_modules/google-proto-files', 'protobufs']
+    //    })
+    //);
 
     // build meta data credentials
     var metadata = new grpc.Metadata();
     metadata.add('authorization', `Bearer ${config.VECTOR_BEARER_TOKEN}`);
     var headerCreds = grpc.credentials.createFromMetadataGenerator((_args, callback) => callback(null, metadata));
-    // build ssl credentials using the cert
-    if (!fs.existsSync(config.VECTOR_CRT)){
-        log.error("Missing Vector certificate file. Make sure you've got the proper file location specified in your config.js");
-        process.exit(-1);
+
+    // $$$ Remove fs dependency
+    //// build ssl credentials using the cert
+    //if (!fs.existsSync(config.VECTOR_CRT)){
+    //    log.error("Missing Vector certificate file. Make sure you've got the proper file location specified in your config.js");
+    //    process.exit(-1);
+    //}
+    //var sslCreds = grpc.credentials.createSsl(fs.readFileSync(config.VECTOR_CRT));
+
+    if (!config.sslCertString) {
+        log.error("Missing Vector certificate. config.sslCertString should specify this");
+        //process.exit(-1);
     }
-    var sslCreds = grpc.credentials.createSsl(fs.readFileSync(config.VECTOR_CRT));
+    var sslCreds = grpc.credentials.createSsl(config.sslCertString);
+
     // combine so that every call is properly encrypted and authenticated
     var credentials = grpc.credentials.combineChannelCredentials(sslCreds, headerCreds);
     // Pass the crendentials when creating a channel
@@ -103,16 +118,17 @@ var VectorAPI = function(configObj){
 };
 
 VectorAPI.prototype.listMethods = function(){
-    const proto = grpc.loadPackageDefinition(
-        protoLoader.loadSync("./protobufs/anki_vector/messaging/external_interface.proto", {
-            keepCase: true,
-            longs: String,
-            enums: String,
-            defaults: true,
-            oneofs: true,
-            includeDirs: ['node_modules/google-proto-files', 'protobufs']
-        })
-    );
+    // $$$ no protoloader
+    //const proto = grpc.loadPackageDefinition(
+    //    protoLoader.loadSync("./protobufs/anki_vector/messaging/external_interface.proto", {
+    //        keepCase: true,
+    //        longs: String,
+    //        enums: String,
+    //        defaults: true,
+    //        oneofs: true,
+    //        includeDirs: ['node_modules/google-proto-files', 'protobufs']
+    //    })
+    //);
     let finalRoutes = {};
     const rootLevelRoutes = Object.keys(proto.Anki.Vector.external_interface);
     rootLevelRoutes.forEach((rootLevelRoute) => {
